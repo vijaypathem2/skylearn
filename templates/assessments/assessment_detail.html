@@ -1,0 +1,10 @@
+<h1>{{ assessment.title }}</h1>
+
+<p><strong>Description:</strong> {{ assessment.description }}</p>
+<p><strong>Department:</strong> {{ assessment.department }}</p>
+<p><strong>Duration:</strong> {{ assessment.duration_minutes }} minutes</p>
+<p><strong>Total Questions:</strong> {{ assessment.total_questions }}</p>
+<p><strong>Passing Score:</strong> {{ assessment.passing_score }}</p>
+<p><strong>Status:</strong> {{ assessment.is_active|yesno:"Active,Inactive" }}</p>
+<p><strong>Created by:</strong> {{ assessment.created_by }}</p>
+<p><strong>Created at:</strong> {{ assessment.created_at }}</p>
