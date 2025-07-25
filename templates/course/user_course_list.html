@@ -13,11 +13,9 @@
 </nav>
 
 {% if request.user.is_student %}
-    <div class="title-1">{{ student.program.title }}</div>
-    {% if student.program.summary %}
-        <p>{{ student.program.summary }}</p>
-    {% endif %}
+    <div class="title-1">{% trans 'My Courses' %}</div>
 {% endif %}
+
 
 {% if request.user.is_lecturer %}
     <div class="title-1">{% trans 'My Courses' %}</div>

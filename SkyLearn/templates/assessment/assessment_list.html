@@ -1,0 +1,8 @@
+<h1>Available Assessments</h1>
+<ul>
+{% for assessment in assessments %}
+    <li>{{ assessment.title }} -
+        <a href="{% url 'take_assessment' assessment.id %}">Take Assessment</a>
+    </li>
+{% endfor %}
+</ul>

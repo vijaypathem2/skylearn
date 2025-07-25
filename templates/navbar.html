@@ -7,9 +7,9 @@
 				<i class="fas fa-bars"></i>
 			</div>
 
-			<form class="form-header" action="{% url 'query' %}" method="GET">
+			<form class="form-header" action="{% url 'home' %}" method="GET">
 				<input id="primary-search" class="form-control rounded-end-0" type="text" name="q" value="{{ request.GET.q }}"
-					placeholder="{% trans 'Search All... #course, #program, #Quiz, #News, #Events' %}" required />
+					placeholder="{% trans 'Search All... #course, #Quiz, #News, #Events' %}"
 				<button class="btn btn-dark rounded-start-0" type="submit">
 					<i class="fas fa-search"></i>
 				</button>

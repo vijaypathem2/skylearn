@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold text-primary">Lessons for {{ course.title }}</h2>
+    <a href="{% url 'lesson_create' pk=course.id %}" class="btn btn-success">
+      <i class="bi bi-plus-circle"></i> Add Lesson
+    </a>
+  </div>
+
+  {% if lessons %}
+    <div class="list-group shadow-sm rounded-4">
+      {% for lesson in lessons %}
+        <a href="{% url 'lesson_detail' lesson.pk %}"
+           class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+          <span>{{ lesson.title }}</span>
+          <i class="bi bi-chevron-right text-muted"></i>
+        </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-info shadow-sm rounded-3">
+      No lessons available.
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>All Questions & Options</h1>
+
+  {% for question in questions %}
+    <div style="margin-bottom: 30px;">
+      <h3>
+        {{ question.question_number }}. {{ question.question_text }}
+        <small style="color: #555;">(⏱ {{ question.duration|floatformat:2 }} mins)</small>
+      </h3>
+
+      <ul>
+        {% for option in question.options.all %}
+          <li>
+            <strong>{{ option.option_letter }}.</strong> {{ option.option_text }}
+            {% if option.is_correct %}
+              <span style="color: green;">✔ Correct</span>
+            {% endif %}
+          </li>
+        {% empty %}
+          <li>No options available.</li>
+        {% endfor %}
+      </ul>
+
+      <form method="post">
+        {% csrf_token %}
+        <div>
+          {{ option_form.option_text.label_tag }} {{ option_form.option_text }}
+        </div>
+        <div>
+          {{ option_form.option_letter.label_tag }} {{ option_form.option_letter }}
+        </div>
+        <div>
+          {{ option_form.is_correct.label_tag }} {{ option_form.is_correct }}
+        </div>
+        <input type="hidden" name="assessment" value="{{ question.assessment.id }}">
+        <input type="hidden" name="question" value="{{ question.id }}">
+        <button type="submit" class="btn btn-sm btn-success">Add Option</button>
+      </form>
+    </div>
+    <hr>
+  {% endfor %}
+{% endblock %}

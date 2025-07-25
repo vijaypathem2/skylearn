@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 from django.contrib.auth import get_user_model
+from course.models import Course
 
 User = get_user_model()
 
@@ -16,15 +17,19 @@ class Assessment(models.Model):
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    duration_minutes = models.PositiveIntegerField(default=30)
+    duration_minutes = models.PositiveIntegerField(default=30, help_text="Total duration for the assessment in minutes")
     total_questions = models.PositiveIntegerField(default=20)
     passing_score = models.PositiveIntegerField(default=60)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, null=True, blank=True)
+    title = models.CharField(max_length=255)
+    total_marks = models.PositiveIntegerField()
 
     def __str__(self):
         return self.title
+
 
 class Question(models.Model):
     assessment = models.ForeignKey(Assessment, on_delete=models.CASCADE, related_name="questions")
@@ -33,9 +38,24 @@ class Question(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    duration = models.FloatField(null=True, blank=True)  # duration in minutes
 
     def __str__(self):
         return f"Q{self.question_number}: {self.question_text[:50]}"
+
+    def save(self, *args, **kwargs):
+        if self.assessment and self.assessment.total_questions > 0:
+            total_questions = Question.objects.filter(assessment=self.assessment).exclude(pk=self.pk).count() + 1
+            if total_questions > 0:
+                self.duration = self.assessment.duration_minutes / total_questions
+
+        super(Question, self).save(*args, **kwargs)
+
+        # Optional: update all other questions' duration to keep consistent
+        Question.objects.filter(assessment=self.assessment).update(duration=self.duration)
+
+
+
 
 class Option(models.Model):
     OPTION_CHOICES = [('A', 'A'), ('B', 'B'), ('C', 'C'), ('D', 'D')]

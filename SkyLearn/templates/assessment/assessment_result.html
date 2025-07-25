@@ -1,0 +1,14 @@
+<h2>Assessment Result</h2>
+<p><b>Score:</b> {{ attempt.score }}%</p>
+<p><b>Passed:</b> {{ attempt.is_passed }}</p>
+<hr>
+<h3>Review</h3>
+<ul>
+{% for response in responses %}
+    <li>
+        <b>{{ response.question.question_text }}</b><br>
+        Your answer: {{ response.selected_option.option_text if response.selected_option else "Not answered" }} -
+        {% if response.is_correct %}<span style="color:green">Correct</span>{% else %}<span style="color:red">Wrong</span>{% endif %}
+    </li>
+{% endfor %}
+</ul>

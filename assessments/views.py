@@ -1,6 +1,8 @@
 from django.views.generic import ListView, DetailView, CreateView, DeleteView
 from django.views.generic.edit import UpdateView
-from django.views.generic.edit import DeleteView
+from django.views.generic.edit import DeleteView 
+from .forms import QuestionForm, OptionForm
+from django.shortcuts import redirect
 
 from django.urls import reverse_lazy
 from .models import Department, Assessment, Question, Option, AssessmentAttempt, UserResponse
@@ -47,20 +49,64 @@ class AssessmentDeleteView(DeleteView):
 
 class QuestionListView(ListView):
     model = Question
-    template_name = 'question/list.html'
+    template_name = 'assessments/question/list.html'
     context_object_name = 'questions'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['option_form'] = OptionForm()
+        return context
+
+    def post(self, request, *args, **kwargs):  # ← line 60
+        form = OptionForm(request.POST)
+        if form.is_valid():
+            form.save()
+        return redirect('question_list')
+
+
 
 class QuestionCreateView(CreateView):
     model = Question
-    fields = ['assessment', 'question_text', 'question_number', 'is_active']
+    form_class = QuestionForm
     template_name = 'question/form.html'
-    success_url = reverse_lazy('question_list')
+
+    def get_initial(self):
+        initial = super().get_initial()
+        assessment_id = self.kwargs.get('assessment_id')
+        if assessment_id:
+            initial['assessment'] = assessment_id
+        return initial
+
+    def form_valid(self, form):
+        assessment = form.cleaned_data['assessment']
+        total_questions = assessment.total_questions
+        form.instance.duration = (
+            assessment.duration_minutes / total_questions if total_questions > 0 else 0
+        )
+        return super().form_valid(form)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from assessments.models import Assessment
+        context['assessment_data'] = [
+            {
+                'id': assessment.id,
+                'duration_minutes': assessment.duration_minutes,
+                'total_questions': assessment.total_questions,
+            }
+            for assessment in Assessment.objects.all()
+        ]
+        return context
+
+    def get_success_url(self):
+        return reverse('question_list')  # or any redirect you prefer
 
 
-class OptionListView(ListView):
-    model = Option
-    template_name = 'option/list.html'
-    context_object_name = 'options'
+
+# class OptionListView(ListView):
+#     model = Option
+#     template_name = 'option/list.html'
+#     context_object_name = 'options'
 
 class OptionCreateView(CreateView):
     model = Option

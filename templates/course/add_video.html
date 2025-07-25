@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-6 col-md-8">
+      <div class="card shadow-lg border-0 rounded-4 p-4">
+        <h2 class="mb-4 text-center text-primary fw-bold">
+          Add Video for "{{ lesson.title }}"
+        </h2>
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+          {{ form.as_p }}
+
+          <div class="d-flex justify-content-between mt-4">
+            <button type="submit" class="btn btn-success px-4">
+              <i class="bi bi-upload"></i> Upload
+            </button>
+            <a href="{% url 'lesson_manage' lesson.pk %}" class="btn btn-outline-secondary px-4">
+              <i class="bi bi-arrow-left"></i> Back
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-4">
+  <h1 class="mb-4">Welcome to SkyLearn</h1>
+
+  <div class="mb-5">
+    <h2>Courses</h2>
+    {% if courses %}
+      <ul class="list-group">
+        {% for course in courses %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <strong>{{ course.title }}</strong>
+              <br>
+              <small class="text-muted">{{ course.get_level_display }} | {{ course.status|title }}</small>
+            </div>
+            <a href="{% url 'course_detail' course.pk %}" class="btn btn-sm btn-outline-primary">View</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">No courses available.</p>
+    {% endif %}
+  </div>
+
+  <div>
+    <h2>Assessments</h2>
+    {% if assessments %}
+      <ul class="list-group">
+        {% for assessment in assessments %}
+          <li class="list-group-item">{{ assessment.name }}</li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="text-muted">No assessments available.</p>
+    {% endif %}
+  </div>
+</div>
+
+<h1>Hello Home Page</h1>
+{% endblock %}

@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+  <h1>Create Question</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit" class="btn btn-primary">Create</button>
+  </form>
+
+  <!-- Inject assessment_data safely -->
+  {{ assessment_data|json_script:"assessment-data" }}
+
+  <script>
+document.addEventListener('DOMContentLoaded', function () {
+  const assessmentSelect = document.getElementById('id_assessment');
+  const durationField = document.getElementById('id_duration');
+  const assessmentData = JSON.parse(document.getElementById('assessment-data').textContent);
+
+  if (assessmentSelect && durationField) {
+    function updateDuration() {
+      const selectedId = parseInt(assessmentSelect.value);
+      const selected = assessmentData.find(item => item.id === selectedId);
+      if (selected && selected.total_questions > 0) {
+        durationField.value = (selected.duration_minutes / selected.total_questions).toFixed(2);
+      } else {
+        durationField.value = '';
+      }
+    }
+
+    assessmentSelect.addEventListener('change', updateDuration);
+    updateDuration(); // Run once on load
+  }
+});
+</script>
+{% endblock %}

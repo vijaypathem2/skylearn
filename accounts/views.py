@@ -15,7 +15,7 @@ from accounts.filters import LecturerFilter, StudentFilter
 from accounts.forms import (
     ParentAddForm,
     ProfileUpdateForm,
-    ProgramUpdateForm,
+    DepartmentUpdateForm,
     StaffAddForm,
     StudentAddForm,
 )
@@ -381,7 +381,7 @@ def edit_student_program(request, pk):
     student = get_object_or_404(Student, student_id=pk)
     user = get_object_or_404(User, pk=pk)
     if request.method == "POST":
-        form = ProgramUpdateForm(request.POST, request.FILES, instance=student)
+        form = DepartmentUpdateForm(request.POST, request.FILES, instance=student)
         if form.is_valid():
             form.save()
             full_name = user.get_full_name
@@ -389,7 +389,7 @@ def edit_student_program(request, pk):
             return redirect("profile_single", user_id=pk)
         messages.error(request, "Please correct the error(s) below.")
     else:
-        form = ProgramUpdateForm(instance=student)
+        form = DepartmentUpdateForm(instance=student)
     return render(
         request,
         "accounts/edit_student_program.html",

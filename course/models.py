@@ -11,96 +11,161 @@ from core.models import ActivityLog, Semester
 from core.utils import unique_slug_generator
 
 
-class ProgramManager(models.Manager):
-    def search(self, query=None):
-        queryset = self.get_queryset()
-        if query:
-            or_lookup = Q(title__icontains=query) | Q(summary__icontains=query)
-            queryset = queryset.filter(or_lookup).distinct()
-        return queryset
-
-
-class Program(models.Model):
-    title = models.CharField(max_length=150, unique=True)
-    summary = models.TextField(blank=True)
-
-    objects = ProgramManager()
+class Department(models.Model):
+    name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    head_of_department = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.title}"
-
-    def get_absolute_url(self):
-        return reverse("program_detail", kwargs={"pk": self.pk})
-
-
-@receiver(post_save, sender=Program)
-def log_program_save(sender, instance, created, **kwargs):
-    verb = "created" if created else "updated"
-    ActivityLog.objects.create(message=_(f"The program '{instance}' has been {verb}."))
-
-
-@receiver(post_delete, sender=Program)
-def log_program_delete(sender, instance, **kwargs):
-    ActivityLog.objects.create(message=_(f"The program '{instance}' has been deleted."))
-
-
-class CourseManager(models.Manager):
-    def search(self, query=None):
-        queryset = self.get_queryset()
-        if query:
-            or_lookup = (
-                Q(title__icontains=query)
-                | Q(summary__icontains=query)
-                | Q(code__icontains=query)
-                | Q(slug__icontains=query)
-            )
-            queryset = queryset.filter(or_lookup).distinct()
-        return queryset
+        return self.name
 
 
 class Course(models.Model):
-    slug = models.SlugField(unique=True, blank=True)
-    title = models.CharField(max_length=200)
-    code = models.CharField(max_length=200, unique=True)
-    credit = models.IntegerField(default=0)
-    summary = models.TextField(max_length=200, blank=True)
-    program = models.ForeignKey(Program, on_delete=models.CASCADE)
-    level = models.CharField(max_length=25, choices=settings.LEVEL_CHOICES)
-    year = models.IntegerField(choices=settings.YEARS, default=1)
-    semester = models.CharField(choices=settings.SEMESTER_CHOICES, max_length=200)
-    is_elective = models.BooleanField(default=False)
+    LEVEL_CHOICES = [('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advanced', 'Advanced')]
+    STATUS_CHOICES = [('draft', 'Draft'), ('published', 'Published'), ('archived', 'Archived')]
 
-    objects = CourseManager()
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    short_description = models.CharField(max_length=500, blank=True, null=True)
+    thumbnail = models.CharField(max_length=255, blank=True, null=True)
+    banner_image = models.CharField(max_length=255, blank=True, null=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    level = models.CharField(max_length=20, choices=LEVEL_CHOICES)
+    learning_outcomes = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft')
+    added_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.title} ({self.code})"
-
-    def get_absolute_url(self):
-        return reverse("course_detail", kwargs={"slug": self.slug})
-
-    @property
-    def is_current_semester(self):
-
-        current_semester = Semester.objects.filter(is_current_semester=True).first()
-        return self.semester == current_semester.semester if current_semester else False
+        return self.title
 
 
-@receiver(pre_save, sender=Course)
-def course_pre_save_receiver(sender, instance, **kwargs):
-    if not instance.slug:
-        instance.slug = unique_slug_generator(instance)
+class Lesson(models.Model):
+    LESSON_TYPE_CHOICES = [
+        ('video', 'Video'),
+        ('document', 'Document'),
+        ('image', 'Image'),
+    ]
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    slug = models.SlugField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    content = models.TextField(blank=True, null=True)
+    lesson_type = models.CharField(max_length=20, choices=LESSON_TYPE_CHOICES)
+    duration_minutes = models.IntegerField(null=True, blank=True)
+    sort_order = models.IntegerField()
+    is_preview = models.BooleanField(default=False)
+    is_mandatory = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.title
 
 
-@receiver(post_save, sender=Course)
-def log_course_save(sender, instance, created, **kwargs):
-    verb = "created" if created else "updated"
-    ActivityLog.objects.create(message=_(f"The course '{instance}' has been {verb}."))
+class Document(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    file = models.FileField(upload_to='lesson_documents/')
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    source_links = models.TextField(blank=True, null=True)
+    is_downloadable = models.BooleanField(default=True)
+    sort_order = models.IntegerField(default=0)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
 
-@receiver(post_delete, sender=Course)
-def log_course_delete(sender, instance, **kwargs):
-    ActivityLog.objects.create(message=_(f"The course '{instance}' has been deleted."))
+class Video(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    video_file = models.FileField(upload_to='lesson_videos/', blank=True, null=True)
+    video_link = models.URLField(blank=True, null=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
+
+class Image(models.Model):
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    image_file = models.ImageField(upload_to='lesson_images/', blank=True, null=True)
+    image_link = models.URLField(blank=True, null=True)
+    sort_order = models.IntegerField(default=0)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class CourseEnrollment(models.Model):
+    ENROLL_TYPE_CHOICES = [
+        ('self_enrolled', 'Self Enrolled'),
+        ('admin_allocated', 'Admin Allocated'),
+        ('bulk_import', 'Bulk Import'),
+    ]
+    ENROLL_STATUS_CHOICES = [
+        ('active', 'Active'),
+        ('completed', 'Completed'),
+        ('dropped', 'Dropped'),
+        ('suspended', 'Suspended'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    enrollment_type = models.CharField(max_length=20, choices=ENROLL_TYPE_CHOICES)
+    enrollment_status = models.CharField(max_length=20, choices=ENROLL_STATUS_CHOICES, default='active')
+    enrolled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='enrolled_users')
+    enrollment_date = models.DateTimeField(auto_now_add=True)
+    start_date = models.DateTimeField(blank=True, null=True)
+    completion_date = models.DateTimeField(blank=True, null=True)
+    progress_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    last_accessed = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class LessonProgress(models.Model):
+    PROGRESS_STATUS = [
+        ('not_started', 'Not Started'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    enrollment = models.ForeignKey(CourseEnrollment, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=PROGRESS_STATUS, default='not_started')
+    progress_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    time_spent_seconds = models.IntegerField(default=0)
+    started_at = models.DateTimeField(blank=True, null=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+    last_accessed = models.DateTimeField(blank=True, null=True)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+
+class ActivityLog(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
+    activity_type = models.CharField(max_length=50)
+    description = models.TextField(blank=True, null=True)
+    ip_address = models.CharField(max_length=45, blank=True, null=True)
+    user_agent = models.TextField(blank=True, null=True)
+    additional_data = models.JSONField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.activity_type} - {self.user}"
 
 class CourseAllocation(models.Model):
     lecturer = models.ForeignKey(
@@ -114,11 +179,10 @@ class CourseAllocation(models.Model):
     )
 
     def __str__(self):
-        return self.lecturer.get_full_name
+        return self.lecturer.get_full_name()
 
     def get_absolute_url(self):
         return reverse("edit_allocated_course", kwargs={"pk": self.pk})
-
 
 class Upload(models.Model):
     title = models.CharField(max_length=100)
@@ -130,18 +194,7 @@ class Upload(models.Model):
         ),
         validators=[
             FileExtensionValidator(
-                [
-                    "pdf",
-                    "docx",
-                    "doc",
-                    "xls",
-                    "xlsx",
-                    "ppt",
-                    "pptx",
-                    "zip",
-                    "rar",
-                    "7zip",
-                ]
+                ["pdf", "docx", "doc", "xls", "xlsx", "ppt", "pptx", "zip", "rar", "7zip"]
             )
         ],
     )
@@ -170,28 +223,6 @@ class Upload(models.Model):
         super().delete(*args, **kwargs)
 
 
-@receiver(post_save, sender=Upload)
-def log_upload_save(sender, instance, created, **kwargs):
-    if created:
-        message = _(
-            f"The file '{instance.title}' has been uploaded to the course '{instance.course}'."
-        )
-    else:
-        message = _(
-            f"The file '{instance.title}' of the course '{instance.course}' has been updated."
-        )
-    ActivityLog.objects.create(message=message)
-
-
-@receiver(post_delete, sender=Upload)
-def log_upload_delete(sender, instance, **kwargs):
-    ActivityLog.objects.create(
-        message=_(
-            f"The file '{instance.title}' of the course '{instance.course}' has been deleted."
-        )
-    )
-
-
 class UploadVideo(models.Model):
     title = models.CharField(max_length=100)
     slug = models.SlugField(unique=True, blank=True)
@@ -199,9 +230,7 @@ class UploadVideo(models.Model):
     video = models.FileField(
         upload_to="course_videos/",
         help_text=_("Valid video formats: mp4, mkv, wmv, 3gp, f4v, avi, mp3"),
-        validators=[
-            FileExtensionValidator(["mp4", "mkv", "wmv", "3gp", "f4v", "avi", "mp3"])
-        ],
+        validators=[FileExtensionValidator(["mp4", "mkv", "wmv", "3gp", "f4v", "avi", "mp3"])],
     )
     summary = models.TextField(blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
@@ -211,46 +240,11 @@ class UploadVideo(models.Model):
 
     def get_absolute_url(self):
         return reverse(
-            "video_single", kwargs={"slug": self.course.slug, "video_slug": self.slug}
+            "video_single",
+            kwargs={"slug": self.course.slug, "video_slug": self.slug}
         )
 
     def delete(self, *args, **kwargs):
         self.video.delete(save=False)
         super().delete(*args, **kwargs)
 
-
-@receiver(pre_save, sender=UploadVideo)
-def video_pre_save_receiver(sender, instance, **kwargs):
-    if not instance.slug:
-        instance.slug = unique_slug_generator(instance)
-
-
-@receiver(post_save, sender=UploadVideo)
-def log_uploadvideo_save(sender, instance, created, **kwargs):
-    if created:
-        message = _(
-            f"The video '{instance.title}' has been uploaded to the course '{instance.course}'."
-        )
-    else:
-        message = _(
-            f"The video '{instance.title}' of the course '{instance.course}' has been updated."
-        )
-    ActivityLog.objects.create(message=message)
-
-
-@receiver(post_delete, sender=UploadVideo)
-def log_uploadvideo_delete(sender, instance, **kwargs):
-    ActivityLog.objects.create(
-        message=_(
-            f"The video '{instance.title}' of the course '{instance.course}' has been deleted."
-        )
-    )
-
-
-class CourseOffer(models.Model):
-    """NOTE: Only department head can offer semester courses"""
-
-    dep_head = models.ForeignKey("accounts.DepartmentHead", on_delete=models.CASCADE)
-
-    def __str__(self):
-        return str(self.dep_head)

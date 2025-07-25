@@ -1,504 +1,541 @@
-from django.conf import settings
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.core.paginator import Paginator
-from django.db.models import Sum
-from django.shortcuts import get_object_or_404, redirect, render
-from django.utils.decorators import method_decorator
-from django.views.generic import CreateView
-from django_filters.views import FilterView
+from django.shortcuts import get_object_or_404, redirect
+from django.urls import reverse, reverse_lazy
+from django.views.generic import ListView, DetailView, CreateView, DeleteView, UpdateView
 
-from accounts.decorators import lecturer_required, student_required
-from accounts.models import Student
-from core.models import Semester
-from course.filters import CourseAllocationFilter, ProgramFilter
-from course.forms import (
-    CourseAddForm,
-    CourseAllocationForm,
-    EditCourseAllocationForm,
-    ProgramForm,
-    UploadFormFile,
-    UploadFormVideo,
-)
-from course.models import (
-    Course,
-    CourseAllocation,
-    Program,
-    Upload,
-    UploadVideo,
-)
-from result.models import TakenCourse
+from .models import Course, Lesson, Document, Video, Image
+from .forms import CourseForm, LessonForm
+from .forms import DocumentForm, VideoForm, ImageForm
+from django.views.generic import FormView
 
 
-# ########################################################
-# Program Views
-# ########################################################
+# -------------------- Course Views --------------------
+
+class Course_Home_ListView(ListView):
+    model = Course
+    template_name = 'course/course_list.html'
+    context_object_name = 'courses'
 
 
-@method_decorator([login_required, lecturer_required], name="dispatch")
-class ProgramFilterView(FilterView):
-    filterset_class = ProgramFilter
-    template_name = "course/program_list.html"
+class CourseDetailView(DetailView):
+    model = Course
+    template_name = 'course/course_detail.html'
+    context_object_name = 'course'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["title"] = "Programs"
+        course = self.get_object()
+        context["title"] = course.title
+        context["lessons"] = Lesson.objects.filter(course=course)
         return context
 
 
-@login_required
-@lecturer_required
-def program_add(request):
-    if request.method == "POST":
-        form = ProgramForm(request.POST)
-        if form.is_valid():
-            program = form.save()
-            messages.success(request, f"{program.title} program has been created.")
-            return redirect("programs")
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = ProgramForm()
-    return render(
-        request, "course/program_add.html", {"title": "Add Program", "form": form}
-    )
+class CourseDetailWatchView(DetailView):
+    model = Course
+    template_name = "course/course_watchview.html"
+    context_object_name = "course"
+    pk_url_kwarg = "pk"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        course = self.get_object()
+        context["title"] = course.title
+        context["lessons"] = Lesson.objects.filter(course=course)
+        return context
 
 
-@login_required
-def program_detail(request, pk):
-    program = get_object_or_404(Program, pk=pk)
-    courses = Course.objects.filter(program_id=pk).order_by("-year")
-    credits = courses.aggregate(total_credits=Sum("credit"))
-    paginator = Paginator(courses, 10)
-    page = request.GET.get("page")
-    courses = paginator.get_page(page)
-    return render(
-        request,
-        "course/program_single.html",
-        {
-            "title": program.title,
-            "program": program,
-            "courses": courses,
-            "credits": credits,
-        },
-    )
-
-
-@login_required
-@lecturer_required
-def program_edit(request, pk):
-    program = get_object_or_404(Program, pk=pk)
-    if request.method == "POST":
-        form = ProgramForm(request.POST, instance=program)
-        if form.is_valid():
-            program = form.save()
-            messages.success(request, f"{program.title} program has been updated.")
-            return redirect("programs")
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = ProgramForm(instance=program)
-    return render(
-        request, "course/program_add.html", {"title": "Edit Program", "form": form}
-    )
-
-
-@login_required
-@lecturer_required
-def program_delete(request, pk):
-    program = get_object_or_404(Program, pk=pk)
-    title = program.title
-    program.delete()
-    messages.success(request, f"Program {title} has been deleted.")
-    return redirect("programs")
-
-
-# ########################################################
-# Course Views
-# ########################################################
-
-
-@login_required
-def course_single(request, slug):
-    course = get_object_or_404(Course, slug=slug)
-    files = Upload.objects.filter(course__slug=slug)
-    videos = UploadVideo.objects.filter(course__slug=slug)
-    lecturers = CourseAllocation.objects.filter(courses__pk=course.id)
-    return render(
-        request,
-        "course/course_single.html",
-        {
-            "title": course.title,
-            "course": course,
-            "files": files,
-            "videos": videos,
-            "lecturers": lecturers,
-            "media_url": settings.MEDIA_URL,
-        },
-    )
-
-
-@login_required
-@lecturer_required
-def course_add(request, pk):
-    program = get_object_or_404(Program, pk=pk)
-    if request.method == "POST":
-        form = CourseAddForm(request.POST)
-        if form.is_valid():
-            course = form.save()
-            messages.success(
-                request, f"{course.title} ({course.code}) has been created."
-            )
-            return redirect("program_detail", pk=program.pk)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = CourseAddForm(initial={"program": program})
-    return render(
-        request,
-        "course/course_add.html",
-        {"title": "Add Course", "form": form, "program": program},
-    )
-
-
-@login_required
-@lecturer_required
-def course_edit(request, slug):
-    course = get_object_or_404(Course, slug=slug)
-    if request.method == "POST":
-        form = CourseAddForm(request.POST, instance=course)
-        if form.is_valid():
-            course = form.save()
-            messages.success(
-                request, f"{course.title} ({course.code}) has been updated."
-            )
-            return redirect("program_detail", pk=course.program.pk)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = CourseAddForm(instance=course)
-    return render(
-        request, "course/course_add.html", {"title": "Edit Course", "form": form}
-    )
-
-
-@login_required
-@lecturer_required
-def course_delete(request, slug):
-    course = get_object_or_404(Course, slug=slug)
-    title = course.title
-    program_id = course.program.id
-    course.delete()
-    messages.success(request, f"Course {title} has been deleted.")
-    return redirect("program_detail", pk=program_id)
-
-
-# ########################################################
-# Course Allocation Views
-# ########################################################
-
-
-@method_decorator([login_required, lecturer_required], name="dispatch")
-class CourseAllocationFormView(CreateView):
-    form_class = CourseAllocationForm
-    template_name = "course/course_allocation_form.html"
+class CourseCreateView(CreateView):
+    model = Course
+    form_class = CourseForm
+    template_name = 'course/course_create.html'
+    success_url = reverse_lazy('home')
 
     def form_valid(self, form):
-        lecturer = form.cleaned_data["lecturer"]
-        selected_courses = form.cleaned_data["courses"]
-        allocation, created = CourseAllocation.objects.get_or_create(lecturer=lecturer)
-        allocation.courses.set(selected_courses)
-        messages.success(
-            self.request, f"Courses allocated to {lecturer.get_full_name} successfully."
-        )
-        return redirect("course_allocation_view")
+        form.instance.added_by = self.request.user
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("lesson_create", kwargs={"pk": self.object.pk})
+
+
+class CourseUpdateView(UpdateView):
+    model = Course
+    form_class = CourseForm
+    template_name = 'course/course_update.html'
+    slug_field = 'slug'
+    slug_url_kwarg = 'slug'
+    success_url = reverse_lazy('home')
+
+
+class CourseDeleteView(DeleteView):
+    model = Course
+    template_name = 'course/course_confirm_delete.html'
+    success_url = reverse_lazy('home')
+
+
+# -------------------- Lesson Views --------------------
+
+class CourseLessonListView(ListView):
+    model = Lesson
+    template_name = 'course/course_lessons.html'
+    context_object_name = 'lessons'
+
+    def get_queryset(self):
+        course_id = self.kwargs['pk']
+        return Lesson.objects.filter(course_id=course_id).order_by('sort_order')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["title"] = "Assign Course"
+        context['course'] = Course.objects.get(pk=self.kwargs['pk'])
         return context
 
 
-@method_decorator([login_required, lecturer_required], name="dispatch")
-class CourseAllocationFilterView(FilterView):
-    filterset_class = CourseAllocationFilter
-    template_name = "course/course_allocation_view.html"
+class LessonCreateView(CreateView):
+    model = Lesson
+    form_class = LessonForm
+    template_name = "course/lesson_create.html"
+
+    def dispatch(self, request, *args, **kwargs):
+        self.course = get_object_or_404(Course, pk=self.kwargs["pk"])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.course = self.course
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse("course_detail", kwargs={"pk": self.course.pk})
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["course"] = self.course
+        return ctx
+
+
+
+
+class LessonDetailView(DetailView):
+    model = Lesson
+    template_name = 'course/lesson_detail.html'
+    context_object_name = 'lesson'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["title"] = "Course Allocations"
+        lesson = self.get_object()
+        context['documents'] = Document.objects.filter(lesson=lesson)
+        context['videos'] = Video.objects.filter(lesson=lesson)
+        context['images'] = Image.objects.filter(lesson=lesson)
+        return context
+    
+class LessonContentManageView(DetailView):
+    model = Lesson
+    template_name = "course/lesson_content_manage.html"
+    context_object_name = "lesson"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['documents'] = Document.objects.filter(lesson=self.object)
+        context['videos'] = Video.objects.filter(lesson=self.object)
+        context['images'] = Image.objects.filter(lesson=self.object)
+        context['document_form'] = DocumentForm()
+        context['video_form'] = VideoForm()
+        context['image_form'] = ImageForm()
         return context
 
 
-@login_required
-@lecturer_required
-def edit_allocated_course(request, pk):
-    allocation = get_object_or_404(CourseAllocation, pk=pk)
-    if request.method == "POST":
-        form = EditCourseAllocationForm(request.POST, instance=allocation)
-        if form.is_valid():
-            form.save()
-            messages.success(request, "Course allocation has been updated.")
-            return redirect("course_allocation_view")
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = EditCourseAllocationForm(instance=allocation)
-    return render(
-        request,
-        "course/course_allocation_form.html",
-        {"title": "Edit Course Allocation", "form": form},
-    )
+
+class DocumentCreateView(CreateView):
+    model = Document
+    fields = ['title', 'file', 'description']
+    template_name = 'course/add_document.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.lesson = get_object_or_404(Lesson, pk=self.kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.lesson = self.lesson
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('lesson_manage', kwargs={'pk': self.lesson.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['lesson'] = self.lesson
+        return context
 
 
-@login_required
-@lecturer_required
-def deallocate_course(request, pk):
-    allocation = get_object_or_404(CourseAllocation, pk=pk)
-    allocation.delete()
-    messages.success(request, "Successfully deallocated courses.")
-    return redirect("course_allocation_view")
+class VideoCreateView(CreateView):
+    model = Video
+    fields = ['title', 'video_file', 'video_link', 'description']
+    template_name = 'course/add_video.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.lesson = get_object_or_404(Lesson, pk=self.kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.lesson = self.lesson
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('lesson_manage', kwargs={'pk': self.lesson.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['lesson'] = self.lesson
+        return context
 
 
-# ########################################################
-# File Upload Views
-# ########################################################
+class ImageCreateView(CreateView):
+    model = Image
+    fields = ['title', 'image_file', 'image_link', 'description']
+    template_name = 'course/add_image.html'
+
+    def dispatch(self, request, *args, **kwargs):
+        self.lesson = get_object_or_404(Lesson, pk=self.kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def form_valid(self, form):
+        form.instance.lesson = self.lesson
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('lesson_manage', kwargs={'pk': self.lesson.pk})
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['lesson'] = self.lesson
+        return context
 
 
-@login_required
-@lecturer_required
-def handle_file_upload(request, slug):
-    course = get_object_or_404(Course, slug=slug)
-    if request.method == "POST":
-        form = UploadFormFile(request.POST, request.FILES)
-        if form.is_valid():
-            upload = form.save(commit=False)
-            upload.course = course
-            upload.save()
-            messages.success(request, f"{upload.title} has been uploaded.")
-            return redirect("course_detail", slug=slug)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = UploadFormFile()
-    return render(
-        request,
-        "upload/upload_file_form.html",
-        {"title": "File Upload", "form": form, "course": course},
-    )
 
 
-@login_required
-@lecturer_required
-def handle_file_edit(request, slug, file_id):
-    course = get_object_or_404(Course, slug=slug)
-    upload = get_object_or_404(Upload, pk=file_id)
-    if request.method == "POST":
-        form = UploadFormFile(request.POST, request.FILES, instance=upload)
-        if form.is_valid():
-            upload = form.save()
-            messages.success(request, f"{upload.title} has been updated.")
-            return redirect("course_detail", slug=slug)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = UploadFormFile(instance=upload)
-    return render(
-        request,
-        "upload/upload_file_form.html",
-        {"title": "Edit File", "form": form, "course": course},
-    )
 
 
-@login_required
-@lecturer_required
-def handle_file_delete(request, slug, file_id):
-    upload = get_object_or_404(Upload, pk=file_id)
-    title = upload.title
-    upload.delete()
-    messages.success(request, f"{title} has been deleted.")
-    return redirect("course_detail", slug=slug)
 
 
-# ########################################################
-# Video Upload Views
-# ########################################################
 
 
-@login_required
-@lecturer_required
-def handle_video_upload(request, slug):
-    course = get_object_or_404(Course, slug=slug)
-    if request.method == "POST":
-        form = UploadFormVideo(request.POST, request.FILES)
-        if form.is_valid():
-            video = form.save(commit=False)
-            video.course = course
-            video.save()
-            messages.success(request, f"{video.title} has been uploaded.")
-            return redirect("course_detail", slug=slug)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = UploadFormVideo()
-    return render(
-        request,
-        "upload/upload_video_form.html",
-        {"title": "Video Upload", "form": form, "course": course},
-    )
+# class DocumentCreateView(CreateView):
+#     model = Document
+#     fields = ['title', 'file', 'description']
+#     template_name = 'course/add_document.html'
+
+#     def form_valid(self, form):
+#         form.instance.lesson_id = self.kwargs['pk']
+#         return super().form_valid(form)
+
+#     def get_success_url(self):
+#         return reverse('lesson_manage', kwargs={'pk': self.kwargs['pk']})
 
 
-@login_required
-def handle_video_single(request, slug, video_slug):
-    course = get_object_or_404(Course, slug=slug)
-    video = get_object_or_404(UploadVideo, slug=video_slug)
-    return render(
-        request,
-        "upload/video_single.html",
-        {"video": video, "course": course},
-    )
+# class VideoCreateView(CreateView):
+#     model = Video
+#     fields = ['title', 'video_file', 'video_link', 'description']
+#     template_name = 'course/add_video.html'
+
+#     def form_valid(self, form):
+#         form.instance.lesson_id = self.kwargs['pk']
+#         return super().form_valid(form)
+
+#     def get_success_url(self):
+#         return reverse('lesson_manage', kwargs={'pk': self.kwargs['pk']})
 
 
-@login_required
-@lecturer_required
-def handle_video_edit(request, slug, video_slug):
-    course = get_object_or_404(Course, slug=slug)
-    video = get_object_or_404(UploadVideo, slug=video_slug)
-    if request.method == "POST":
-        form = UploadFormVideo(request.POST, request.FILES, instance=video)
-        if form.is_valid():
-            video = form.save()
-            messages.success(request, f"{video.title} has been updated.")
-            return redirect("course_detail", slug=slug)
-        messages.error(request, "Correct the error(s) below.")
-    else:
-        form = UploadFormVideo(instance=video)
-    return render(
-        request,
-        "upload/upload_video_form.html",
-        {"title": "Edit Video", "form": form, "course": course},
-    )
+# class ImageCreateView(CreateView):
+#     model = Image
+#     fields = ['title', 'image_file', 'image_link', 'description']
+#     template_name = 'course/add_image.html'
+
+#     def form_valid(self, form):
+#         form.instance.lesson_id = self.kwargs['pk']
+#         return super().form_valid(form)
+
+#     def get_success_url(self):
+#         return reverse('lesson_manage', kwargs={'pk': self.kwargs['pk']})
 
 
-@login_required
-@lecturer_required
-def handle_video_delete(request, slug, video_slug):
-    video = get_object_or_404(UploadVideo, slug=video_slug)
-    title = video.title
-    video.delete()
-    messages.success(request, f"{title} has been deleted.")
-    return redirect("course_detail", slug=slug)
 
 
-# ########################################################
-# Course Registration Views
-# ########################################################
 
 
-@login_required
-@student_required
-def course_registration(request):
-    if request.method == "POST":
-        student = Student.objects.get(student__pk=request.user.id)
-        ids = ()
-        data = request.POST.copy()
-        data.pop("csrfmiddlewaretoken", None)  # remove csrf_token
-        for key in data.keys():
-            ids = ids + (str(key),)
-        for s in range(0, len(ids)):
-            course = Course.objects.get(pk=ids[s])
-            obj = TakenCourse.objects.create(student=student, course=course)
-            obj.save()
-        messages.success(request, "Courses registered successfully!")
-        return redirect("course_registration")
-    else:
-        current_semester = Semester.objects.filter(is_current_semester=True).first()
-        if not current_semester:
-            messages.error(request, "No active semester found.")
-            return render(request, "course/course_registration.html")
-
-        # student = Student.objects.get(student__pk=request.user.id)
-        student = get_object_or_404(Student, student__id=request.user.id)
-        taken_courses = TakenCourse.objects.filter(student__student__id=request.user.id)
-        t = ()
-        for i in taken_courses:
-            t += (i.course.pk,)
-
-        courses = (
-            Course.objects.filter(
-                program__pk=student.program.id,
-                level=student.level,
-                semester=current_semester,
-            )
-            .exclude(id__in=t)
-            .order_by("year")
-        )
-        all_courses = Course.objects.filter(
-            level=student.level, program__pk=student.program.id
-        )
-
-        no_course_is_registered = False  # Check if no course is registered
-        all_courses_are_registered = False
-
-        registered_courses = Course.objects.filter(level=student.level).filter(id__in=t)
-        if (
-            registered_courses.count() == 0
-        ):  # Check if number of registered courses is 0
-            no_course_is_registered = True
-
-        if registered_courses.count() == all_courses.count():
-            all_courses_are_registered = True
-
-        total_first_semester_credit = 0
-        total_sec_semester_credit = 0
-        total_registered_credit = 0
-        for i in courses:
-            if i.semester == "First":
-                total_first_semester_credit += int(i.credit)
-            if i.semester == "Second":
-                total_sec_semester_credit += int(i.credit)
-        for i in registered_courses:
-            total_registered_credit += int(i.credit)
-        context = {
-            "is_calender_on": True,
-            "all_courses_are_registered": all_courses_are_registered,
-            "no_course_is_registered": no_course_is_registered,
-            "current_semester": current_semester,
-            "courses": courses,
-            "total_first_semester_credit": total_first_semester_credit,
-            "total_sec_semester_credit": total_sec_semester_credit,
-            "registered_courses": registered_courses,
-            "total_registered_credit": total_registered_credit,
-            "student": student,
-        }
-        return render(request, "course/course_registration.html", context)
 
 
-@login_required
-@student_required
-def course_drop(request):
-    if request.method == "POST":
-        student = get_object_or_404(Student, student__pk=request.user.id)
-        course_ids = request.POST.getlist("course_ids")
-        print("course_ids", course_ids)
-        for course_id in course_ids:
-            course = get_object_or_404(Course, pk=course_id)
-            TakenCourse.objects.filter(student=student, course=course).delete()
-        messages.success(request, "Courses dropped successfully!")
-        return redirect("course_registration")
 
 
-# ########################################################
-# User Course List View
-# ########################################################
+# from django.conf import settings
+# from django.contrib import messages
+# from django.contrib.auth.decorators import login_required
+# from django.core.paginator import Paginator
+# from django.shortcuts import get_object_or_404, redirect, render
+# from django.utils.decorators import method_decorator
+# from .models import Course, Lesson
+
+# from accounts.decorators import lecturer_required, student_required
+# from accounts.models import Student
+# from core.models import Semester
+# from course.forms import (
+#     UploadFormFile,
+#     UploadFormVideo,
+# )
+# from course.models import (
+#     Course,
+#     Video,
+#     Image,
+#     Department,
+#     Lesson,
+#     Document,
+#     CourseEnrollment,
+#     LessonProgress,
+#     ActivityLog,
+# )
+# from result.models import TakenCourse
+# from assessments.models import Assessment
+# from .forms import CourseForm, LessonForm
+# from django.views.generic import ListView, DetailView, CreateView, DeleteView, UpdateView
+# from django.urls import reverse_lazy
+# from .views import LessonDetailView
 
 
-@login_required
-def user_course_list(request):
-    if request.user.is_lecturer:
-        courses = Course.objects.filter(allocated_course__lecturer__pk=request.user.id)
-        return render(request, "course/user_course_list.html", {"courses": courses})
+# class Course_Home_ListView(ListView):
+#     model = Course
+#     template_name = 'course/course_list.html'
+#     context_object_name = 'courses'
 
-    if request.user.is_student:
-        student = get_object_or_404(Student, student__pk=request.user.id)
-        taken_courses = TakenCourse.objects.filter(student=student)
-        return render(
-            request,
-            "course/user_course_list.html",
-            {"student": student, "taken_courses": taken_courses},
-        )
 
-    # For other users
-    return render(request, "course/user_course_list.html")
+# class CourseDetailView(DetailView):
+#     model = Course
+#     template_name = 'course/course_detail.html'
+#     context_object_name = 'course'
+
+#     def get_queryset(self):
+#         return Course.objects.filter(status='published')
+
+
+# class CourseDetailWatchView(DetailView):
+#     model = Course
+#     template_name = "course/course_watchview.html"
+#     context_object_name = "course"
+#     pk_url_kwarg = "pk"
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         course = self.get_object()
+#         context["title"] = course.title
+#         context["lessons"] = Lesson.objects.filter(course=course)
+#         return context
+
+
+# class LessonView(DetailView):
+#     model = Lesson
+#     template_name = 'course/lesson_detail.html'
+#     context_object_name = 'lesson'
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         lesson = self.get_object()
+#         context['documents'] = Document.objects.filter(lesson=lesson)
+#         context['videos'] = Video.objects.filter(lesson=lesson)
+#         context['images'] = Image.objects.filter(lesson=lesson)
+#         return context
+
+
+# class CourseCreateView(CreateView):
+#     model = Course
+#     form_class = CourseForm
+#     template_name = 'course/course_create.html'
+#     success_url = reverse_lazy('home')
+
+#     def form_valid(self, form):
+#         form.instance.added_by = self.request.user
+#         return super().form_valid(form)
+    
+#     def get_success_url(self):
+#         return reverse("lesson_create", kwargs={"course_pk": self.object.pk})
+
+
+# class CourseDeleteView(DeleteView):
+#     model = Course
+#     template_name = 'course/course_confirm_delete.html'
+#     success_url = reverse_lazy('home')
+
+
+# class CourseUpdateView(UpdateView):
+#     model = Course
+#     form_class = CourseForm
+#     template_name = 'course/course_update.html'
+#     slug_field = 'slug'
+#     slug_url_kwarg = 'slug'
+#     success_url = reverse_lazy('home')
+
+
+# class CourseLessonListView(ListView):
+#     model = Lesson
+#     template_name = 'course/course_lessons.html'
+#     context_object_name = 'lessons'
+
+#     def get_queryset(self):
+#         course_id = self.kwargs['pk']
+#         return Lesson.objects.filter(course_id=course_id).order_by('sort_order')
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         context['course'] = Course.objects.get(pk=self.kwargs['pk'])
+#         return context
+    
+# class LessonCreateView(CreateView):
+#     model = Lesson
+#     form_class = LessonForm
+#     template_name = "course/lesson_create.html"
+
+#     def dispatch(self, request, *args, **kwargs):
+#         self.course = get_object_or_404(Course, pk=kwargs["course_pk"])
+#         return super().dispatch(request, *args, **kwargs)
+
+#     def form_valid(self, form):
+#         form.instance.course = self.course
+#         return super().form_valid(form)
+
+#     def get_success_url(self):
+#         return reverse("course_lessons", kwargs={"pk": self.course.pk})
+
+#     def get_context_data(self, **kwargs):
+#         ctx = super().get_context_data(**kwargs)
+#         ctx["course"] = self.course
+#         return ctx
+    
+# class LessonDetailView(DetailView):
+#     model = Lesson
+#     template_name = 'course/lesson_detail.html'
+#     context_object_name = 'lesson'
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         lesson = self.get_object()
+#         context['documents'] = Document.objects.filter(lesson=lesson)
+#         context['videos'] = Video.objects.filter(lesson=lesson)
+#         context['images'] = Image.objects.filter(lesson=lesson)
+#         return context
+
+
+
+
+
+
+
+
+
+# from django.conf import settings
+# from django.contrib import messages
+# from django.contrib.auth.decorators import login_required
+# from django.core.paginator import Paginator
+# from django.shortcuts import get_object_or_404, redirect, render
+# from django.utils.decorators import method_decorator
+# # from django.utils.text import slugify
+# # import uuid
+
+# from accounts.decorators import lecturer_required, student_required
+# from accounts.models import Student
+# from core.models import Semester
+# from course.forms import (
+#     UploadFormFile,
+#     UploadFormVideo,
+# )
+# from course.models import (
+#     Course,
+#     Video,
+#     Image,
+#     Department,
+#     Lesson,
+#     Document,
+#     CourseEnrollment,
+#     LessonProgress,
+#     ActivityLog,
+# )
+# from result.models import TakenCourse
+# from assessments.models import Assessment
+# from .forms import CourseForm
+# from django.views.generic import ListView, DetailView, CreateView, DeleteView, UpdateView
+# from django.urls import reverse_lazy
+
+
+# class Course_Home_ListView(ListView):
+#     model = Course
+#     template_name = 'course/course_list.html'
+#     context_object_name = 'courses'
+
+# class CourseDetailView(DetailView):
+#     model = Course
+#     template_name = 'course/course_detail.html'
+#     context_object_name = 'course'
+
+#     def get_queryset(self):
+#         return Course.objects.filter(status='published')  # Optional filter
+    
+# class CourseDetailWatchView(DetailView):
+#     model = Course
+#     template_name = "course/course_watchview.html"
+#     context_object_name = "course"
+#     pk_url_kwarg = "pk"  
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         course = self.get_object()
+#         context["title"] = course.title
+#         context["lessons"] = Lesson.objects.filter(course=course)
+#         return context
+    
+
+# class LessonView(DetailView):
+#     model = Lesson
+#     template_name = 'course/lesson_detail.html'
+#     context_object_name = 'lesson'
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         lesson = self.get_object()
+
+#         context['documents'] = Document.objects.filter(lesson=lesson)
+#         context['videos'] = Video.objects.filter(lesson=lesson)
+#         context['images'] = Image.objects.filter(lesson=lesson)
+
+#         return context
+
+    
+# class CourseCreateView(CreateView):
+#     model = Course
+#     form_class = CourseForm
+#     template_name = 'course/course_create.html'
+#     success_url = reverse_lazy('home')
+
+#     def form_valid(self, form):
+#         form.instance.added_by = self.request.user  # Optional: Set current user as creator
+#         return super().form_valid(form)
+
+# class CourseDeleteView(DeleteView):
+#     model = Course
+#     template_name = 'course/course_confirm_delete.html'
+#     success_url = reverse_lazy('home')
+
+# class CourseUpdateView(UpdateView):
+#     model = Course
+#     form_class = CourseForm
+#     template_name = 'course/course_update.html'
+#     slug_field = 'slug'
+#     slug_url_kwarg = 'slug'
+#     success_url = reverse_lazy('home')
+
+# class CourseLessonView(ListView):
+#     model = Lesson
+#     template_name = 'course/course_lessons.html'
+#     context_object_name = 'lessons'
+
+#     def get_queryset(self):
+#         course_id = self.kwargs['pk']
+#         return Lesson.objects.filter(course_id=course_id)
+
+#     def get_context_data(self, **kwargs):
+#         context = super().get_context_data(**kwargs)
+#         context['course'] = Course.objects.get(pk=self.kwargs['pk'])
+#         return context
+

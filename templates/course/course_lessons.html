@@ -1,0 +1,39 @@
+<!-- templates/course/course_lessons.html -->
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="fw-bold text-primary">{{ course.title }} - Lessons</h2>
+    <a href="{% url 'lesson_create' course.pk %}" class="btn btn-success">
+      <i class="bi bi-plus-circle"></i> Add Lesson
+    </a>
+  </div>
+
+  {% if lessons %}
+    <div class="list-group shadow-sm rounded-4">
+      {% for lesson in lessons %}
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+          <span>
+            <strong>{{ lesson.title }}</strong> 
+            <small class="text-muted">({{ lesson.lesson_type|capfirst }})</small>
+          </span>
+          <a href="{% url 'lesson_manage' lesson.pk %}" class="btn btn-sm btn-outline-info">
+            <i class="bi bi-gear"></i> Manage
+          </a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="alert alert-info mt-3 shadow-sm rounded-3">
+      No lessons added for this course yet.
+    </div>
+  {% endif %}
+
+  <div class="mt-4">
+    <a href="{% url 'home' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left-circle"></i> Back to Courses
+    </a>
+  </div>
+</div>
+{% endblock %}
