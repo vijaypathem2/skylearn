@@ -10,7 +10,11 @@ from .views import (
     LessonCreateView,
     LessonDetailView,
     LessonContentManageView,
-    DocumentCreateView, VideoCreateView, ImageCreateView,
+    DocumentCreateView, 
+    VideoCreateView, 
+    ImageCreateView,
+    LessonStartView,
+    LessonFinishView
 )
 
 urlpatterns = [
@@ -30,9 +34,12 @@ urlpatterns = [
 
     # Single lesson detail
     path('lesson/<int:pk>/', LessonDetailView.as_view(), name='lesson_detail_view'),
+    path('lesson/<int:pk>/start/', LessonStartView.as_view(), name='lesson_start'),
 
     # Course watch
     path('course/<int:pk>/watch/', CourseDetailWatchView.as_view(), name='course_watch_view'),
+    path('lesson/<int:pk>/finish/', LessonFinishView.as_view(), name='lesson_finish'),
+
 ]
 
 

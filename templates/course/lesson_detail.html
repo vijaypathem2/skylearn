@@ -1,82 +1,137 @@
-{% extends 'base.html' %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ lesson.title }}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+  <style>
+    .content-display > div { display: none; }
+    .content-display > div.active { display: block; }
+    .placeholder {
+      text-align: center;
+      padding: 40px;
+      color: #777;
+      border: 2px dashed #ccc;
+      border-radius: 8px;
+    }
+    iframe, embed {
+      width: 100%;
+      height: 500px;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+<div class="container-fluid">
+  <div class="row">
+    <!-- Left Side: Content Display -->
+    <div class="col-lg-8 p-4">
+      <h3 class="fw-bold">{{ lesson.title }}</h3>
+      <div id="content-display" class="content-display mt-3">
+        <!-- Placeholder -->
+        <div class="placeholder" id="default-placeholder">
+          <p>Click on a video, document, or image to view it here.</p>
+        </div>
 
-{% block content %}
-<div class="container py-5">
-  <!-- Lesson Header -->
-  <div class="mb-4">
-    <h2 class="fw-bold text-primary">{{ lesson.title }}</h2>
-    <p class="text-muted">{{ lesson.description }}</p>
-  </div>
-
-  <!-- Documents Section -->
-  <div class="card shadow-sm border-0 rounded-4 mb-4">
-    <div class="card-header bg-light fw-bold">Documents</div>
-    <div class="card-body">
-      {% if documents %}
-        <ul class="list-group list-group-flush">
-          {% for doc in documents %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ doc.title }}
-              <a href="{{ doc.file.url }}" class="btn btn-sm btn-outline-secondary">
-                <i class="bi bi-eye"></i> View
-              </a>
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted mb-0">No documents available.</p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Videos Section -->
-  <div class="card shadow-sm border-0 rounded-4 mb-4">
-    <div class="card-header bg-light fw-bold">Videos</div>
-    <div class="card-body">
-      {% if videos %}
+        <!-- Videos -->
         {% for video in videos %}
-          <div class="mb-4">
-            <h6 class="fw-semibold">{{ video.title }}</h6>
+          <div id="content-video{{ video.id }}">
+            <h5>{{ video.title }}</h5>
             {% if video.video_link %}
               <div class="ratio ratio-16x9">
-                <iframe src="{{ video.video_link }}" frameborder="0" allowfullscreen></iframe>
+                <iframe src="{{ video.video_link }}" allowfullscreen></iframe>
               </div>
-            {% elif video.video_file %}
+            {% else %}
               <video class="w-100 rounded mt-2" controls>
                 <source src="{{ video.video_file.url }}" type="video/mp4">
-                Your browser does not support the video tag.
               </video>
             {% endif %}
           </div>
         {% endfor %}
-      {% else %}
-        <p class="text-muted mb-0">No videos available.</p>
-      {% endif %}
-    </div>
-  </div>
 
-  <!-- Images Section -->
-  <div class="card shadow-sm border-0 rounded-4 mb-4">
-    <div class="card-header bg-light fw-bold">Images</div>
-    <div class="card-body">
-      {% if images %}
-        <div class="row g-3">
-          {% for image in images %}
-            <div class="col-md-4 col-sm-6 text-center">
-              <img src="{{ image.image_file.url }}" alt="{{ image.title }}" class="img-fluid rounded shadow-sm mb-2">
-              <p class="small text-muted">{{ image.title }}</p>
-            </div>
+        <!-- Images -->
+        {% for image in images %}
+          <div id="content-image{{ image.id }}">
+            <h5>{{ image.title }}</h5>
+            <img src="{{ image.image_file.url }}" class="img-fluid rounded" alt="{{ image.title }}">
+          </div>
+        {% endfor %}
+
+        <!-- Documents (PDFs) -->
+        {% for doc in documents %}
+          <div id="content-doc{{ doc.id }}">
+            <h5>{{ doc.title }}</h5>
+            <embed src="{{ doc.file.url }}#toolbar=0&navpanes=0&scrollbar=0" type="application/pdf" />
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Right Side: Content List -->
+    <div class="col-lg-4 p-4 bg-light border-start">
+      <h4 class="fw-bold">{{ lesson.title }}</h4>
+      {% if lesson.description %}
+        <p class="text-muted">{{ lesson.description }}</p>
+      {% endif %}
+
+      {% if videos %}
+        <h5 class="mt-4">Videos</h5>
+        <ul class="list-group mb-3">
+          {% for video in videos %}
+            <li class="list-group-item">
+              <a href="#" onclick="showContent('content-video{{ video.id }}')" class="text-decoration-none">▶ {{ video.title }}</a>
+            </li>
           {% endfor %}
-        </div>
-      {% else %}
-        <p class="text-muted mb-0">No images available.</p>
+        </ul>
       {% endif %}
+
+      {% if documents %}
+        <h5>Documents</h5>
+        <ul class="list-group mb-3">
+          {% for doc in documents %}
+            <li class="list-group-item">
+              <a href="#" onclick="showContent('content-doc{{ doc.id }}')" class="text-decoration-none">📄 {{ doc.title }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      {% if images %}
+        <h5>Images</h5>
+        <ul class="list-group">
+          {% for image in images %}
+            <li class="list-group-item">
+              <a href="#" onclick="showContent('content-image{{ image.id }}')" class="text-decoration-none">🖼️ {{ image.title }}</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+
+      <!-- Back & Finish Buttons -->
+      <div class="mt-4 d-flex gap-2">
+        <a href="{% url 'course_watch_view' lesson.course.id %}" class="btn btn-outline-secondary w-50">
+          Back
+        </a>
+        <form method="post" action="{% url 'lesson_finish' lesson.pk %}" class="w-50">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-success w-100">Mark as Completed</button>
+        </form>
+      </div>
     </div>
   </div>
-
-  <!-- Back Button -->
-  <a href="{% url 'course_lessons' lesson.course.id %}" class="btn btn-outline-secondary">
-    <i class="bi bi-arrow-left-circle"></i> Back to Course Lessons
-  </a>
 </div>
-{% endblock %}
+
+<script>
+  function showContent(contentId) {
+    document.querySelectorAll('.content-display > div').forEach(div => div.classList.remove('active'));
+    const selected = document.getElementById(contentId);
+    if (selected) selected.classList.add('active');
+    document.getElementById('default-placeholder').style.display = 'none';
+  }
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

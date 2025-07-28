@@ -1,4 +1,3 @@
-<!-- templates/course/course_lessons.html -->
 {% extends 'base.html' %}
 
 {% block content %}
@@ -15,12 +14,20 @@
       {% for lesson in lessons %}
         <div class="list-group-item d-flex justify-content-between align-items-center">
           <span>
-            <strong>{{ lesson.title }}</strong> 
+            <strong>{{ lesson.title }}</strong>
             <small class="text-muted">({{ lesson.lesson_type|capfirst }})</small>
           </span>
-          <a href="{% url 'lesson_manage' lesson.pk %}" class="btn btn-sm btn-outline-info">
-            <i class="bi bi-gear"></i> Manage
-          </a>
+
+          <div>
+            {% if forloop.first or lesson.previous_completed %}
+              <form method="post" action="{% url 'lesson_start_view' lesson.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-primary">Start Lesson</button>
+              </form>
+            {% else %}
+              <button class="btn btn-sm btn-secondary" disabled>Locked</button>
+            {% endif %}
+          </div>
         </div>
       {% endfor %}
     </div>
@@ -30,10 +37,16 @@
     </div>
   {% endif %}
 
-  <div class="mt-4">
+  <!-- Back & Finish Buttons -->
+  <div class="mt-4 d-flex gap-2">
     <a href="{% url 'home' %}" class="btn btn-outline-secondary">
       <i class="bi bi-arrow-left-circle"></i> Back to Courses
     </a>
+
+    <!-- Always show Finish Lesson -->
+    <button type="button" class="btn btn-success">
+      <i class="bi bi-check-circle"></i> Finish Lesson
+    </button>
   </div>
 </div>
 {% endblock %}
