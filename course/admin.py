@@ -9,6 +9,7 @@ from .models import (
     CourseEnrollment,
     LessonProgress,
     ActivityLog,
+    CourseAllocation
 )
 
 
@@ -69,6 +70,8 @@ class ActivityLogAdmin(admin.ModelAdmin):
     list_display = ('user', 'activity_type', 'ip_address', 'created_at')
     search_fields = ('activity_type', 'description', 'ip_address')
     list_filter = ('activity_type',)
+
+admin.site.register(CourseAllocation)
 
 
 

@@ -10,6 +10,4 @@ urlpatterns = [
     path('assessment/<int:pk>/delete/', AssessmentDeleteView.as_view(), name='assessment_delete'),
     path('questions/', QuestionListView.as_view(), name='question_list'),
     path("assessment/<int:assessment_id>/question/create/", QuestionCreateView.as_view(), name="question_create"),
-    
-    
 ]

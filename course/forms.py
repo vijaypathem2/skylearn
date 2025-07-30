@@ -5,6 +5,10 @@ from course.models import UploadVideo
 from course.models import Course
 from .models import Lesson
 from .models import Document, Video, Image
+from django.contrib.auth import get_user_model
+from .models import CourseAllocation, Course
+
+User = get_user_model()
 
 class UploadFormVideo(forms.ModelForm):
     class Meta:
@@ -47,6 +51,7 @@ class CourseForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 4}),
             'learning_outcomes': forms.Textarea(attrs={'rows': 3}),
         }
+        
 
 class DocumentForm(forms.ModelForm):
     class Meta:
@@ -62,5 +67,13 @@ class ImageForm(forms.ModelForm):
     class Meta:
         model = Image
         fields = ['title', 'image_file', 'image_link', 'description']
+
+class CourseAllocationForm(forms.ModelForm):
+    class Meta:
+        model = CourseAllocation
+        fields = ['user', 'due_date', 'status']  # ✅ MATCHES MODEL
+        widgets = {
+            'due_date': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
+        }
 
 

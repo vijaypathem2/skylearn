@@ -10,6 +10,12 @@ from course.models import LessonProgress
 from django.views import View
 from django.views.decorators.clickjacking import xframe_options_exempt
 
+from django.contrib import messages
+from .models import Course, CourseAllocation
+from .forms import CourseAllocationForm
+from django.contrib.auth.mixins import LoginRequiredMixin
+from django.utils import timezone
+
 
 # -------------------- Course Views --------------------
 
@@ -17,6 +23,26 @@ class Course_Home_ListView(ListView):
     model = Course
     template_name = 'course/course_list.html'
     context_object_name = 'courses'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        if self.request.user.is_authenticated:
+            enrolled_ids = CourseEnrollment.objects.filter(
+                user=self.request.user
+            ).values_list('course_id', flat=True)
+
+            allocated_ids = CourseAllocation.objects.filter(
+                user=self.request.user
+            ).values_list('course_id', flat=True)
+
+            # Combine both sets
+            all_enrolled_ids = set(enrolled_ids) | set(allocated_ids)
+
+            context['enrolled_courses'] = all_enrolled_ids
+        else:
+            context['enrolled_courses'] = set()
+        return context
+
 
 
 class CourseDetailView(DetailView):
@@ -27,9 +53,22 @@ class CourseDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         course = self.get_object()
+
         context["title"] = course.title
         context["lessons"] = Lesson.objects.filter(course=course)
+
+        # ✅ Check if user is enrolled
+        is_enrolled = False
+        if self.request.user.is_authenticated:
+            from course.models import CourseEnrollment, CourseAllocation
+            enrolled = CourseEnrollment.objects.filter(user=self.request.user, course=course).exists()
+            allocated = CourseAllocation.objects.filter(user=self.request.user, course=course).exists()
+            if enrolled or allocated:
+                is_enrolled = True
+
+        context["is_enrolled"] = is_enrolled
         return context
+
 
 
 class CourseDetailWatchView(DetailView):
@@ -79,7 +118,7 @@ class CourseDeleteView(DeleteView):
 
 class CourseLessonListView(ListView):
     model = Lesson
-    template_name = 'course/course_lessons.html'
+    template_name = 'course/lesson_list.html'
     context_object_name = 'lessons'
 
     def get_queryset(self):
@@ -122,10 +161,25 @@ class LessonDetailView(DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         lesson = self.get_object()
+
+        # Pass content
         context['documents'] = Document.objects.filter(lesson=lesson)
         context['videos'] = Video.objects.filter(lesson=lesson)
         context['images'] = Image.objects.filter(lesson=lesson)
         context['all_lessons'] = Lesson.objects.filter(course=lesson.course).order_by('sort_order')
+
+        # ✅ Check if user completed the lesson
+        is_completed = False
+        if self.request.user.is_authenticated:
+            progress = LessonProgress.objects.filter(
+                user=self.request.user,
+                lesson=lesson,
+                status='completed'
+            ).first()
+            if progress:
+                is_completed = True
+
+        context['is_completed'] = is_completed
         return context
 
 class LessonStartView(DetailView):
@@ -186,7 +240,8 @@ class LessonFinishView(View):
         progress.completed_at = timezone.now()
         progress.save()
 
-        return redirect(reverse('course_watch_view', args=[lesson.course.id]))
+        return redirect('course_watch_view', pk=lesson.course.id)
+
 
     
 class LessonContentManageView(DetailView):
@@ -271,7 +326,64 @@ class ImageCreateView(CreateView):
         context['lesson'] = self.lesson
         return context
 
+class AssignCourseView(CreateView):
+    model = CourseAllocation
+    form_class = CourseAllocationForm
+    template_name = 'course/assign_course.html'
 
+    def form_valid(self, form):
+        course = get_object_or_404(Course, pk=self.kwargs['pk'])
+        form.instance.course = course
+        return super().form_valid(form)
+
+    def get_success_url(self):
+        return reverse('course_detail', kwargs={'pk': self.kwargs['pk']})
+    
+class SelfEnrollCourseView(LoginRequiredMixin, View):
+    """Allow a logged-in user to self-enroll into a course."""
+
+    def get(self, request, pk, *args, **kwargs):
+        course = get_object_or_404(Course, pk=pk)
+
+        # Check if already enrolled
+        if CourseEnrollment.objects.filter(user=request.user, course=course).exists():
+            messages.warning(request, "You are already enrolled in this course.")
+            return redirect("my_courses")  # redirect to My Courses
+
+        # Create enrollment
+        CourseEnrollment.objects.create(
+            user=request.user,
+            course=course,
+            enrollment_type='self_enrolled',
+            enrollment_status='active'
+        )
+
+        messages.success(request, f"You have successfully enrolled in '{course.title}'.")
+        
+        # ✅ Always redirect to My Courses page
+        return redirect(reverse('my_courses'))
+
+
+    
+class MyCoursesView(LoginRequiredMixin, ListView):
+    template_name = "course/my_courses.html"
+    context_object_name = "courses"
+
+    def get_queryset(self):
+        user = self.request.user
+        enrolled = CourseEnrollment.objects.filter(user=user).values_list('course', flat=True)
+        allocated = CourseAllocation.objects.filter(user=user).values_list('course', flat=True)
+        return Course.objects.filter(id__in=set(list(enrolled) + list(allocated)))
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        enrolled_ids = CourseEnrollment.objects.filter(user=self.request.user).values_list('course_id', flat=True)
+        context['enrolled_courses'] = set(enrolled_ids)
+        return context
+
+
+
+ 
 
 
 

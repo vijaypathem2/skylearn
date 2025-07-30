@@ -59,7 +59,7 @@
           </div>
         {% endfor %}
 
-        <!-- Documents (PDFs) -->
+        <!-- Documents -->
         {% for doc in documents %}
           <div id="content-doc{{ doc.id }}">
             <h5>{{ doc.title }}</h5>
@@ -114,10 +114,21 @@
         <a href="{% url 'course_watch_view' lesson.course.id %}" class="btn btn-outline-secondary w-50">
           Back
         </a>
-        <form method="post" action="{% url 'lesson_finish' lesson.pk %}" class="w-50">
-          {% csrf_token %}
-          <button type="submit" class="btn btn-success w-100">Mark as Completed</button>
-        </form>
+
+        {% if user.is_authenticated %}
+          {% if is_completed %}
+            <button class="btn btn-success w-50" disabled>
+              <i class="bi bi-check-circle"></i> Completed
+            </button>
+          {% else %}
+            <form method="post" action="{% url 'lesson_finish' lesson.pk %}" class="w-50">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-success w-100">
+                Mark as Completed
+              </button>
+            </form>
+          {% endif %}
+        {% endif %}
       </div>
     </div>
   </div>
